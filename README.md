@@ -1,2 +1,1 @@
-# ei
-Image Abstraction with Compositing Ellipses
+# Image Abstraction with Compositing Ellipses
