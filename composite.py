@@ -11,7 +11,7 @@ import vgi.ei as ei
 import time
 import math 
 
-targetPath = 'images\landscape1.jpg'
+targetPath = 'images/landscape1.jpg'
 outputPath = 'landscape1.json'
 n = 100
 nb = 50
