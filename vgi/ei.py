@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 import vgi
 import json
 import time
-from scipy.interpolate import interp1d
 
 QARGN = 8
         
@@ -256,8 +255,10 @@ def drawEllipseSet(QSet, rounds = 0, sizeOut = None, mul = None):
             imgOut = np.zeros(sizeArray)            
             if mul is None:
                 Q = ellipseList(QA[iR], sizeArray, pad)
-            else:                
-                Q = ellipseList(QA[iR] * mul, sizeArray, pad)
+            else:   
+                QA[iR][:, 0:2] *= mul
+                QA[iR][:, 3:5] *= mul
+                Q = ellipseList(QA[iR], sizeArray, pad)
             imgOut, accAlpha = blendEllipses(Q, imgOut, bg = bg)        
             bg = imgOut
             iR += 1
@@ -275,8 +276,10 @@ def drawEllipseSet(QSet, rounds = 0, sizeOut = None, mul = None):
             while iCh < nCh:
                 if mul is None:
                     Q = ellipseList(QA[iR][iCh], sizeArray, pad)
-                else:   
-                    Q = ellipseList(QA[iR][iCh] * mul, sizeArray, pad)
+                else:
+                    QA[iR][iCh][:, 0:2] *= mul
+                    QA[iR][iCh][:, 3:5] *= mul
+                    Q = ellipseList(QA[iR][iCh], sizeArray, pad)
                 imgOut[:, :, iCh], accAlpha = blendEllipses(Q, imgOut[:, :, iCh], bg = bg[:, :, iCh])   
                 iCh += 1      
             bg = imgOut
@@ -496,7 +499,7 @@ def ellipseImage(targetPath, outputPath = '', gray = False, bg = None,
                  shrinkEpoches = 50, shrinkRate = 0.95, reduceRound = 3, reduceAreaRate = 0.9, 
                  minNorm = 0.05, denoise = True,
                  flags = 0b11011111, minLength = 1.0, gamma = 0.5 ,pad = 10, sigmoidMax = 100.0, 
-                 initMethod = 'rand', randomSeed = 8051, initArg = None,                   
+                 initMethod = 'rand', randomSeed = 8051, initArg = None, gstart = 0.5, abstart = 0.5,
                  testMode = False, testEpoches = 10, onlyInitEllipse = False, actEpoches = []):
     timeS = time.time()
     sDir, sName, sExt = vgi.parsePath(targetPath)
@@ -538,7 +541,7 @@ def ellipseImage(targetPath, outputPath = '', gray = False, bg = None,
     if onlyInitEllipse:
         sInitQ = '_iniQ'
 
-    QName = sName + sInitQ + '_c' + str(nCh) + '_q'+ str(nQ) + '_R' + str(rounds) + '_e' + str(epoches) + '_b' + str(batchSize) + '_ro' + str(int(minNorm * 1000)) + '_se' + str(shrinkEpoches) +'_sr' + str(int(shrinkRate * 100)) + '_ra' + str(int(reduceAreaRate * 100)) + sGamma            
+    QName = sName + sInitQ + '_c' + str(nCh) + '_q'+ str(nQ) + '_R' + str(rounds) + '_e' + str(epoches) + '_b' + str(batchSize) + '_ro' + str(int(minNorm * 1000)) + '_se' + str(shrinkEpoches) + '_gs' + str(int(gstart)) + '_abs' + str(int(abstart)) + '_ra' + str(int(reduceAreaRate * 100)) + sGamma            
     if outputPath == '':        
         QJsonPath = QName + '.json'
     else:
@@ -562,8 +565,8 @@ def ellipseImage(targetPath, outputPath = '', gray = False, bg = None,
     #Qpath = 'James_q50_500_g01.json'
     qMin = [-nWh, -nHh, -3*np.pi, 0.5, 0.5, 0.001, 0.0, 0.0]
     qMax = [nWh, nHh, 3*np.pi, nHh, nWh, 1.0, 1.0, 1.0]
-    gHw = nH * .5
-    gWw = nW * .5
+    gHw = nH * gstart
+    gWw = nW * gstart
 
     testDataR = []
     iR = 0
@@ -587,7 +590,7 @@ def ellipseImage(targetPath, outputPath = '', gray = False, bg = None,
             Qarg = initArg
 
         Q0 = ellipseList(Qarg, sizeArray, pad = pad, sigmoidMax = sigmoidMax)
-        Qm0 = np.tile(np.array([gWw, gHw, np.pi / 2, gWw, gHw, 0.1, 0.5, 0.5]), (nQ, 1))
+        Qm0 = np.tile(np.array([gWw, gHw, np.pi / gstart, gWw, gHw, abstart, abstart, abstart]), (nQ, 1))
         Qup0 = np.zeros([nQ, QARGN])   
 
         if iR > 1 and iR % reduceRound == 0:
@@ -604,8 +607,13 @@ def ellipseImage(targetPath, outputPath = '', gray = False, bg = None,
         testDataAll = []
         actEpochesV = []
         iCh = 0
+        #if morphing:
+        #    Q = copyEllipses(Q0)        
         while iCh < nCh:
             #Q = ellipseList(Qarg, sizeArray, pad = pad)
+            #if morphing:
+            #    Q = copyEllipses(Q) # For morphing, use an ellipse to represent a color
+            #else:
             Q = copyEllipses(Q0)
             Qm = np.array(Qm0)
             Qup = np.array(Qup0)
@@ -632,6 +640,7 @@ def ellipseImage(targetPath, outputPath = '', gray = False, bg = None,
                     testDataAll += [np.array(testData)]
                     #testData = np.array(testData)
                     #print('Min MSE:', np.min(testData[:, 1]), ', final:', testData[-1, 1])
+                    print('Avg MSE:', mseR / (iCh + 1))
                     #plt.plot(testData[:, 0], testData[:, 1], 'go--', linewidth=1, markersize=3)
                     #print('Ch', iCh, vgi.metric(testData))
                     #plt.show()
