@@ -1,6 +1,6 @@
 
-#Image Abstraction with Compositing Ellipses
-*Chang-chieh Cheng*
+# Image Abstraction with Compositing Ellipses
+*Chang-Chieh Cheng
 
 vgi/ei.py includes all implementation code of our method.
 ellipseImage() and drawEllipseSet() are two primary functions.
