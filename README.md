@@ -1,6 +1,7 @@
 
 # Image Abstraction with Compositing Ellipses
 *Chang-Chieh Cheng*
+
 *ITSC, NCTU, Taiwan*
 
 vgi/ei.py includes all implementation code of our method.
