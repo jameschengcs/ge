@@ -26,3 +26,7 @@ vgi.showImg(img, size = sizeOut)
 
 
 
+
+
+
+
