@@ -177,7 +177,7 @@ def dssim(img1, img2, window_size=11, window=None, full=False, val_range=None,
 
 # Classes to re-use window
 class SSIM(torch.nn.Module):
-    def __init__(self, window_size=11, mean_axis=0, val_range=None, img2 = None, padding = True):
+    def __init__(self, window_size=11, mean_axis=0, val_range=None, img2 = None, padding = True, loss = False):
         super(SSIM, self).__init__()
         self.window_size = window_size
         self.patch_size = self.window_size * self.window_size
@@ -195,15 +195,16 @@ class SSIM(torch.nn.Module):
         self.d_Iq2_Mu2 = None
         self.padd = 0
         self.padding = padding
+        self.loss = loss
 
+        self.window = None
         if not(img2 is None):
             (_, self.channels, _, _) = img2.size()
             self.window = create_window(self.window_size, self.channels).to(img2.device).type(img2.dtype)
             if self.padding:
                 self.padd = window_size // 2
             self.setImg2(img2)
-        else:
-            self.window = create_window(window_size)
+
 
     # The second image is the target
     def setImg2(self, img):
@@ -228,7 +229,7 @@ class SSIM(torch.nn.Module):
         (_, channels, _, _) = img1.size()
         if self.padding:
             img1 = padding(img1, self.padd)
-        if channels == self.channels and self.window.dtype == img1.dtype:
+        if not(self.window is None) and channels == self.channels and self.window.dtype == img1.dtype:
             window = self.window
         else:
             window = create_window(self.window_size, channels).to(img1.device).type(img1.dtype)
@@ -237,29 +238,12 @@ class SSIM(torch.nn.Module):
         if img2 is None:
             img2 = self.img2
 
-        return ssim(img1, img2, window=window, window_size=self.window_size, mean_axis=self.mean_axis, 
+        v = ssim(img1, img2, window=window, window_size=self.window_size, mean_axis=self.mean_axis, 
                     val_range = self.val_range, L1 = self.L1, alpha = self.alpha,
-                    mu2 = self.mu2, mu2_sq = self.mu2_sq, sigma2_sq = self.sigma2_sq)    
-
-    #  return (batch_size, channels, patches, patch_size)
-    def backward(self, img1, img2 = None):
-        (_, channels, _, _) = img1.size()
-        if self.padding:
-            img1 = padding(img1, self.padd)
-        if channels == self.channels and self.window.dtype == img1.dtype:
-            window = self.window
-        else:
-            window = create_window(self.window_size, channels).to(img1.device).type(img1.dtype)
-            self.window = window
-            self.channels = channels
-
-        if img2 is None:
-            img2 = self.img2
- 
-        return dssim(img1, img2, window=window, window_size=self.window_size,  
-                    val_range = self.val_range,
-                    mu2 = self.mu2, mu2_sq = self.mu2_sq, sigma2_sq = self.sigma2_sq, d_Iq2_Mu2 = self.d_Iq2_Mu2)
-                # (batch_size, channels, patches, patch_size)
+                    mu2 = self.mu2, mu2_sq = self.mu2_sq, sigma2_sq = self.sigma2_sq)   
+        if self.loss:
+            v  = 1.0 - v
+        return v
 
 def msssim(img1, img2, window_size=11, size_average=True, val_range=None, normalize=None, 
     L1 = False, alpha = 0.84, weights = None):

@@ -58,7 +58,8 @@ class GaussImaging:
         return torch.full(shape, value, dtype = torch.float, device = self.device)                
     
     def __init__(self, target = None, arg = None, shape = (1, 3, 256, 256), 
-                    bg = [0.0, 0.0, 0.0], _prev = None, gpu = True, window_size = 7, random_type = 0):
+                    bg = [0.0, 0.0, 0.0], _prev = None, gpu = True, window_size = 7, 
+                    random_type = 0, min_size = 1.0, ssim_alpha = 0.84):
         self.debug = False
         self._debugData = None
         self.gamma = 80.0
@@ -105,7 +106,7 @@ class GaussImaging:
         #self._step_size = torch.ones([ARGN, 1], dtype = torch.float, device = self.device)
         self._step_size = torch.tensor( [0.5, 0.5, 0.5, 0.5, np.pi / 180., 
                                           1/256.0, 1/256.0, 1/256., 1/256], device = self.device).unsqueeze(dim = -1)
-        self.argMin = np.array([-self.width / 2.0, -self.height / 2.0, 1.0, 1.0, -np.pi, 0.01, 0.0, 0.0, 0.0])
+        self.argMin = np.array([-self.width / 2.0, -self.height / 2.0, min_size, min_size, -np.pi, 0.01, 0.0, 0.0, 0.0])
         self.argMax = np.array([ self.width / 2.0, self.height / 2.0, self.width , self.height , np.pi, 0.9, 1.0, 1.0, 1.0])
         self._expThres = self.tensor(-15.0)
         self._one = self.tensor(1.0)    
@@ -113,6 +114,7 @@ class GaussImaging:
         self._sigmoidThres = self.tensor(10.0) 
         self._sigmoidThresN = -self._sigmoidThres           
 
+        self.ssim_alpha = ssim_alpha
         self._weight = None
         self._mse = torch.nn.MSELoss()
         self._L1 = torch.nn.L1Loss()
@@ -126,10 +128,13 @@ class GaussImaging:
         self._sigmoid = torch.nn.Sigmoid()
 
         # load brush1
-        brushDir = os.path.dirname(vgi.__file__) + '/brush/'
-        #print('vgi path', brushDir)
+        #brushDir = 'brush/'
+        brushDir = 'vgi/brush/'
+        #brushDir = os.path.dirname(vgi.__file__) + '/brush/'
+        print('brush path', brushDir)
 
         imgBrush = 1.0 - vgi.loadImage(brushDir + 'brush1.png', gray = True)
+        #print('imgBrush', imgBrush.shape)
         imgBrush = imgBrush.reshape(imgBrush.shape[0:2])
         #imgBrush = cv2.GaussianBlur(imgBrush,(5, 5), 1.0)
         self._brush1 = self.tensor(imgBrush)
@@ -315,7 +320,7 @@ class GaussImaging:
     
     def lossSSIML1(self, _I, mean_axis = (1, 2, 3)):
         self._SSIM.L1 = True
-        self._SSIM.alpha = 0.84
+        self._SSIM.alpha = self.ssim_alpha
         if self._weight is None:
             self._SSIM.mean_axis = mean_axis
             _loss = self._SSIM.alpha - self._SSIM.forward(_I)  
@@ -358,15 +363,15 @@ class GaussImaging:
             self._A[:, 1, 0] *= y
             self._A[:, 2, 0] *= x
             self._A[:, 3, 0] *= y            
-    def generateInitialArg(self, n, factor_u = 0.5, factor_s = 0.125, shrink_rate = 0.9, shrink_min = 0.1, shrink_n = None, loaded = True, factor_smin = 0.0):
+    def generateInitialArg(self, n, factor_u = 0.5, factor_s = 0.125, shrink_rate = 0.9, shrink_min = 0.1, shrink_n = None, loaded = True, min_size = 1.0):
         x_max = self.width * factor_u
         y_max = self.height * factor_u
         x_min = -x_max
         y_min = -y_max
         witdh_max = self.width * factor_s
         height_max = self.height * factor_s
-        witdh_min = max(self.width * factor_smin, 1)
-        height_min = max(self.height * factor_smin, 1)
+        witdh_min = min_size
+        height_min = min_size
         theta_max = np.pi / 2.0
         theta_min = -theta_max
         alpha_max = 0.8
@@ -449,7 +454,10 @@ class GaussImaging:
                     shrink = False
                 argRandMax[2] = self.width * factor_s
                 argRandMax[3] = self.height * factor_s
-
+                if argRandMax[2] <= argRandMin[2]:
+                    argRandMax[2] = argRandMin[2]
+                if argRandMax[3] <= argRandMin[3]:
+                    argRandMax[3] = argRandMin[3]
         if loaded:
             self.setInitialArg(arg)
             return self._Aini
@@ -811,9 +819,12 @@ class GaussImaging:
     # shrinking when updating failed
     def hillClimb(self, _arg, _I, _arg_min, _arg_max, _current_err = None, 
                   step_size = None, acceleration = 1.2, min_decline = 0.0001, 
+                  gray = False,
                   loss = 'ssim', rounds = 100, primitive = 'Gaussian', _foreground = None):
-
-        dimensions, _ = _arg.shape     
+        
+        dimensions = _arg.shape[0]
+        if gray:
+            dimensions -= 2
         if step_size is None:
             _step_size = clone(self._step_size)
         else:
@@ -853,7 +864,12 @@ class GaussImaging:
                     _step_size[i] = _step[i_best] #bestStep                 
                 else:  # updating failed then shrinking            
                     _step_size[i] /= _shrink_rate                   
-                
+            if gray:
+                _step_size[7] = _step_size[6]
+                _step_size[8] = _step_size[6]
+                _arg_candidate[:, 7, :] = _arg_candidate[:, 6, :]
+                _arg_candidate[:, 8, :] = _arg_candidate[:, 6, :]
+
             if self.debug:
                 self._debugData = torch.cat([self._debugData, _min_err.reshape([1])])
                 
@@ -1177,8 +1193,10 @@ def decomposite(image, n, loss = 'ssim', primitive = 'Gaussian',
                 arg = None, random_type = 0, random_n = 50, seed = 249, best_random = True, 
                 shrink_n = 10, ms_n = 20, 
                 rounds = 100, min_decline = 0.000001, window_size = 7,
-                factor_u = 0.5, factor_s = 0.5, reopt = 0, reopt_type = 0, reopt_n = 10, size_limit = False,
-                weight = None,
+                factor_u = 0.5, factor_s = 0.5, reopt = 0, reopt_type = 2, reopt_n = 3, 
+                size_limit = False, min_size = 1.0,
+                ssim_alpha = 0.84,
+                weight = None, gray = False,
                 verbose = 1, verbose_rounds = (10, 50), log =  None):
     if not(seed is None):
         np.random.seed(seed)
@@ -1190,17 +1208,23 @@ def decomposite(image, n, loss = 'ssim', primitive = 'Gaussian',
     if not(log is None):
         log_t = [] 
 
-
     img_shape = image.shape
     height, width, channels = img_shape
     if bg is None:
         bg_bins = 256
-        bg = vgi.mostRGB(image, bins = bg_bins)
+        if gray:
+            bgi = vgi.mostIntensity(image[:, :, 0], bins = bg_bins)
+            bg = [bgi, bgi, bgi]
+        else:
+            bg = vgi.mostRGB(image, bins = bg_bins)
+
     if verbose & 1:
         timeS = time.time()
         print('shape:', img_shape) 
         print('background:', bg) 
-    gi = GaussImaging(target = image, bg = bg, _prev = _prev, window_size = window_size, random_type = random_type)
+    gi = GaussImaging(target = image, bg = bg, _prev = _prev, 
+                      window_size = window_size, random_type = random_type, min_size = min_size,
+                      ssim_alpha = ssim_alpha)
     if not(weight is None):
         gi.setWeight(weight)
 
@@ -1215,7 +1239,7 @@ def decomposite(image, n, loss = 'ssim', primitive = 'Gaussian',
         i_best  = 0
     elif not best_random:
         random_n = n
-        gi.generateInitialArg(random_n, factor_u = factor_u, factor_s = factor_s, shrink_rate = 0.9, shrink_min = 0.05, shrink_n = shrink_n)  
+        gi.generateInitialArg(random_n, factor_u = factor_u, factor_s = factor_s, min_size = min_size, shrink_rate = 0.9, shrink_min = 0.05, shrink_n = shrink_n)  
         i_best  = 0
 
     iR = 0
@@ -1233,7 +1257,7 @@ def decomposite(image, n, loss = 'ssim', primitive = 'Gaussian',
         #timeS = time.time() 
         if arg is None and best_random:
 
-            gi.generateInitialArg(random_n, factor_u = factor_u, factor_s = factor_s, factor_smin = factor_smin)  
+            gi.generateInitialArg(random_n, factor_u = factor_u, factor_s = factor_s, min_size = min_size)  
             i_best, _I_best, _err = gi.bestSearch(gi._Aini, gi._I, primitive = primitive, loss = loss)
         else:
             i_best = iR
@@ -1245,8 +1269,10 @@ def decomposite(image, n, loss = 'ssim', primitive = 'Gaussian',
             #gi.debug = True
             _arg_opt, gi._I, gi._err = opt(gi._Aini[i_best], gi._I, _arg_min = _arg_min, _arg_max = _arg_max, _current_err = _err, 
                                          acceleration = acc, primitive = primitive, loss = loss, 
+                                         gray = gray,
                                          min_decline = min_decline, rounds = rounds)
 
+            #print('decomposite::_arg_opt', _arg_opt)
             _min_err = gi._err
             gi.appendArg(_arg_opt)
 
@@ -1258,11 +1284,11 @@ def decomposite(image, n, loss = 'ssim', primitive = 'Gaussian',
                 plt.show()
             iR += 1
 
-            if iR >= 100:
-                size_limit = False
-                factor_smin = 0.0
-                _arg_min = gi.tensor(gi.argMin).unsqueeze(dim = -1)
-                _arg_max = gi.tensor(gi.argMax).unsqueeze(dim = -1)
+            #if iR >= 100:
+            #    size_limit = False
+            #    factor_smin = 0.0
+            #    _arg_min = gi.tensor(gi.argMin).unsqueeze(dim = -1)
+            #    _arg_max = gi.tensor(gi.argMax).unsqueeze(dim = -1)
 
             if random_type & 2 and (iR >= 500):
                 gi.random_type = 0
@@ -1271,16 +1297,21 @@ def decomposite(image, n, loss = 'ssim', primitive = 'Gaussian',
             if iR % shrink_n == 0:
                 factor_s = max(factor_s * 0.9, 0.0)
                 #factor_s = max(factor_s * 0.95, 0.0)   
-                if size_limit:
-                    factor_smin = factor_s * factor_smin_ratio
+                if size_limit:                    
                     width_max = width  * factor_s
                     height_max = height * factor_s
-                    width_min = width  * factor_smin
-                    height_min = height  * factor_smin
                     _arg_max[2] = width_max
                     _arg_max[3] = height_max
-                    _arg_min[2] = width_min
-                    _arg_min[3] = height_min
+                    if _arg_max[2] <= _arg_min[2]:
+                        _arg_max[2] = _arg_min[2]
+                    if _arg_max[3] <= _arg_min[3]:
+                        _arg_max[3] = _arg_min[3]    
+
+                    #factor_smin = factor_s * factor_smin_ratio
+                    #width_min = width  * factor_smin
+                    #height_min = height  * factor_smin                                            
+                    #_arg_min[2] = width_min
+                    #_arg_min[3] = height_min
                     if verbose & 1:
                         print('size_limit ratio (max,min):', factor_s, factor_smin, 
                               ', min (w,h):', width_min, height_min, 
@@ -1321,6 +1352,7 @@ def decomposite(image, n, loss = 'ssim', primitive = 'Gaussian',
                 for i in range(reopt):
                     gi = reoptimize(gi, n = reopt_n, loss = loss, primitive = primitive, optimizer = optimizer,
                                     rounds = rounds, min_decline = min_decline, batch_size = 10, 
+                                    gray = gray,
                                     verbose = verbose, verbose_rounds = verbose_rounds, log = log)                
 
     # round loop
@@ -1329,8 +1361,11 @@ def decomposite(image, n, loss = 'ssim', primitive = 'Gaussian',
 
     if reopt_type & 2:
         for i in range(reopt):
+            if verbose & 1:
+                print('reoptimize', i)
             gi = reoptimize(gi, loss = loss, primitive = primitive, optimizer = optimizer,
                             rounds = rounds, min_decline = min_decline, batch_size = 10, 
+                            gray = gray,
                             verbose = verbose, verbose_rounds = verbose_rounds, log = log)
     return  gi
 # decomposition
@@ -1339,6 +1374,7 @@ def decomposite(image, n, loss = 'ssim', primitive = 'Gaussian',
 # Forward alpha compositing with hill climb
 def reoptimize(gi, loss = 'ssim', primitive = 'Gaussian', optimizer = 'hill', 
                 rounds = 100, min_decline = 0.000001, batch_size = 10, n = 0, clamp = True,
+                gray = False,
                 verbose = 1, verbose_rounds = (10, 50), log =  None):
 
         
@@ -1354,7 +1390,7 @@ def reoptimize(gi, loss = 'ssim', primitive = 'Gaussian', optimizer = 'hill',
 
     if verbose & 1:
         timeS = time.time()
-        print('reoptimize #primitives:', primitives)     
+        #print('reoptimize #primitives:', primitives)     
 
     draw = gi.getDrawMethod(primitive)
     lf = gi.getLoss(loss) 
@@ -1403,6 +1439,7 @@ def reoptimize(gi, loss = 'ssim', primitive = 'Gaussian', optimizer = 'hill',
             _arg_k, gi._I, gi._err = opt(_Ab[i], _Ibg, _arg_min = _arg_min, _arg_max = _arg_max, _current_err = gi._err, 
                                          acceleration = acc, primitive = primitive, loss = loss, 
                                          min_decline = min_decline, rounds = rounds,
+                                         gray = gray,
                                          _foreground = _foreground)            
             _A[k] = _arg_k
             _I_Ga_k, _f_k, _G_k = draw(_arg_k.unsqueeze(0))
