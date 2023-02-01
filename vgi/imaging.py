@@ -131,7 +131,7 @@ class GaussImaging:
         #brushDir = 'brush/'
         brushDir = 'vgi/brush/'
         #brushDir = os.path.dirname(vgi.__file__) + '/brush/'
-        print('brush path', brushDir)
+        #print('brush path', brushDir)
 
         imgBrush = 1.0 - vgi.loadImage(brushDir + 'brush1.png', gray = True)
         #print('imgBrush', imgBrush.shape)
