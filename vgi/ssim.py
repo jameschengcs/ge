@@ -98,6 +98,8 @@ def ssim(img1, img2, window_size=11, window=None, mean_axis = 0, full=False, val
         mu2 = None, mu2_sq = None, sigma2_sq = None):  
 
     (_, channels, _, _) = img1.size()
+    L1_val_range = 1.0 if val_range is None else val_range
+
     if window is None:
         real_size = min(window_size, height, width)
         window = create_window(real_size, channels = channels).to(img1.device)
@@ -112,7 +114,7 @@ def ssim(img1, img2, window_size=11, window=None, mean_axis = 0, full=False, val
     _ssim  = l * cs
 
     if L1:
-        _diff = F.conv2d(torch.abs(img1 - img2), window, groups=channels)
+        _diff = F.conv2d(torch.abs(img1 - img2), window, groups=channels) / L1_val_range
         _ssim = _ssim * alpha - _diff * (1.0 - alpha)
 
     # cs: (batch_size, channels, height, width)
