@@ -1,5 +1,6 @@
 
 # Image Representation and Reconstruction by Compositing Gaussian Ellipses
+
 **Accepted by *IET Image Processing*, Oct. 2023.**
 
 *Chang-Chieh Cheng, ITSC, NYCU, Taiwan*
