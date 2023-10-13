@@ -1,12 +1,9 @@
 
 # Image Representation and Reconstruction by Compositing Gaussian Ellipses
 *Chang-Chieh Cheng, ITSC, NYCU, Taiwan*
+## Accepted by IET Image Processing, Oct. 2023.
 
-This study proposes a method of stroke-based rendering for image representation and reconstruction.
-The proposed method involves compositing a set of ellipses by combining various locations, sizes, rotation angles, colors, and opacities.
-This study also prove that alpha compositing is differentiable if the two-dimensional Gaussian function is used to draw a solid ellipse.
-The gradient method can then be employed to automatically identify the parameters of each ellipse such that the difference between the input image and the composited image is minimized.
-The experimental results indicate that the proposed method can represent various types of images of diverse subjects.
+This study proposes a method of stroke-based rendering is proposed for image representation and reconstruction. The proposed method involves compositing a set of ellipses that greatly vary in location, size, rotation angle, color, and opacity. This study proves that alpha compositing is differentiable if a two-dimensional Gaussian function is used to draw a solid ellipse. The gradient method can then be employed for automatically identifying the parameters of each ellipse such that the difference between the input image and the composited image is minimized. Experimental results indicate that the proposed method can represent various types of images including portraits, landscapes, buildings, street scenes, artificial objects, medical images, etc. The proposed method can particularly render the most details and significant features of an input image with fewer strokes compared to other stroke-based rendering algorithms. This study also demonstrates that the proposed method can be applied in painting style simulation and sparse-view computed tomography imaging.
 
 vgi/imaging.py includes all implementation code of the proposed method, where decomposite() is the primary function.
 
