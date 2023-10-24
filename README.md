@@ -1,7 +1,7 @@
 
 # Image Representation and Reconstruction by Compositing Gaussian Ellipses
 
-**Accepted by *IET Image Processing*, Oct. 2023.**\
+**Accepted by *IET Image Processing*, Oct. 2023.**
 
 [[Paper](http://doi.org/10.1049/ipr2.12964)]
 
