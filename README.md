@@ -2,6 +2,7 @@
 # Image Representation and Reconstruction by Compositing Gaussian Ellipses
 
 **Accepted by *IET Image Processing*, Oct. 2023.**
+[Paper](http://doi.org/10.1049/ipr2.12964)
 
 *Chang-Chieh Cheng*\
 *Information Technology Service Center*\
@@ -14,3 +15,15 @@ vgi/imaging.py includes all implementation code of the proposed method, where de
 
 The proposed method can also be applied to sparse-view computed tomography imaging. See [github.com/jameschengcs/gect](https://github.com/jameschengcs/gect)
 
+## Citation
+'''
+@article{https://doi.org/10.1049/ipr2.12964,
+author = {Cheng, Chang-Chieh},
+title = {Image representation and reconstruction by compositing Gaussian ellipses},
+journal = {IET Image Processing},
+volume = {n/a},
+number = {n/a},
+pages = {},
+doi = {https://doi.org/10.1049/ipr2.12964},
+}
+'''
